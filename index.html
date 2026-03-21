@@ -45,11 +45,9 @@ input, textarea, select, button { font-family: var(--font-body); font-size: 16px
   padding-bottom: 10px;
 }
 .topbar-logo {
-  width: 34px; height: 34px; border-radius: 8px;
-  background: var(--cardinal);
+  width: 36px; height: 36px; border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700;
-  font-size: 16px; color: #fff;
+  overflow: hidden; flex-shrink: 0;
 }
 .topbar-text h1 {
   font-family: var(--font-display); font-size: 16px;
@@ -442,7 +440,7 @@ input, textarea, select, button { font-family: var(--font-body); font-size: 16px
 <!-- TOPBAR -->
 <div class="topbar">
   <div class="topbar-brand">
-    <div class="topbar-logo">JP</div>
+    <div class="topbar-logo"><svg viewBox="0 0 60 60" width="30" height="30" xmlns="http://www.w3.org/2000/svg"><rect width="60" height="60" rx="4" fill="#AB0520"/><path d="M30 8L10 52h10l3.5-8h13l3.5 8h10L30 8zm0 16l5 12h-10l5-12z" fill="#fff"/></svg></div>
     <div class="topbar-text">
       <h1>Research Hub</h1>
       <p>U of A &middot; Pre-Med Biology &middot; Class of 2028</p>
