@@ -160,6 +160,11 @@ input, textarea, select, button { font-family: var(--font-body); font-size: 16px
   overflow: hidden;
 }
 .opp-card:hover { border-color: #D6D3D1; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.opp-del {
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  font-size: 18px; line-height: 1; padding: 2px 0 0 8px; flex-shrink: 0;
+}
+.opp-del:hover { color: #DC2626; }
 .opp-header {
   padding: 12px 14px; cursor: pointer;
   display: flex; align-items: flex-start; gap: 10px;
@@ -699,14 +704,9 @@ function loadSaved() {
   if (saved) {
     try {
       var parsed = JSON.parse(saved);
-      parsed.forEach(function(s) {
-        var match = allOpps.find(function(o){ return o.id === s.id; });
-        if (match) {
-          match.status = s.status || match.status;
-          match.notes = s.notes || match.notes;
-          match.priority = s.priority || match.priority;
-        }
-      });
+      if (parsed.length && parsed[0].name) {
+        allOpps = parsed;
+      }
     } catch(e) {}
   }
   var savedTracker = localStorage.getItem('jp_tracker');
@@ -723,8 +723,7 @@ function loadSaved() {
   }
 }
 function saveOpps() {
-  var data = allOpps.map(function(o){ return {id:o.id, status:o.status, notes:o.notes, priority:o.priority}; });
-  localStorage.setItem('jp_opps', JSON.stringify(data));
+  try { localStorage.setItem('jp_opps', JSON.stringify(allOpps)); } catch(e) {}
 }
 function saveTracker() {
   localStorage.setItem('jp_tracker', JSON.stringify(trackedApps));
@@ -847,6 +846,7 @@ function renderOpps() {
     html += '<span class="deadline-tag" style="color:' + dl.color + ';background:' + dl.bg + '">' + dl.text + '</span>';
     html += '<span class="priority-tag" style="color:' + pri.color + ';background:' + pri.bg + '">' + pri.label + '</span>';
     html += '</div>';
+    html += '<button class="opp-del" onclick="event.stopPropagation();deleteOpp(' + opp.id + ')" title="Dismiss">\u00d7</button>';
     html += '</div>';
 
     // Detail
@@ -913,6 +913,14 @@ function updateOppPriority(id, val) {
 function updateOppNotes(id, val) {
   var opp = allOpps.find(function(o){ return o.id===id; });
   if (opp) { opp.notes = val; saveOpps(); }
+}
+function deleteOpp(id) {
+  allOpps = allOpps.filter(function(o){ return o.id !== id; });
+  saveOpps();
+  renderChips();
+  renderStats();
+  renderOpps();
+  renderPrepSelect();
 }
 
 // ==========================================
@@ -1221,39 +1229,54 @@ function refreshOpps() {
     }
 
     if (results.length > 0) {
-      // Success state
+      // Deduplicate and merge into main list
+      var seen = {};
+      allOpps.forEach(function(o) { seen[(o.name + '|' + o.institution).toLowerCase()] = true; });
+      var added = 0;
+      var nextId = allOpps.reduce(function(mx, o){ return Math.max(mx, o.id || 0); }, 0) + 1;
+      results.forEach(function(r) {
+        var key = ((r.name || '') + '|' + (r.institution || '')).toLowerCase();
+        if (!seen[key]) {
+          allOpps.unshift({
+            id: nextId++,
+            name: r.name || 'Untitled',
+            category: r.category || 'On-Campus Research',
+            institution: r.institution || 'Unknown',
+            description: r.description || '',
+            stipend: r.stipend || 'Check listing',
+            deadline: r.deadline || 'Check website',
+            deadlineDate: '2026-12-31',
+            dates: 'Check program',
+            url: r.url || '#',
+            contact: r.contact || 'See website',
+            requirements: 'See program website',
+            status: 'not_started',
+            notes: 'NEW — found ' + dateStr,
+            priority: 'medium'
+          });
+          seen[key] = true;
+          added++;
+        }
+      });
+      saveOpps();
+      renderChips();
+      renderStats();
+      renderOpps();
+      renderPrepSelect();
+
+      var elapsed = Math.round((Date.now() - startTime) / 1000);
       btn.className = 'btn-refresh success';
       icon.className = '';
       icon.innerHTML = '&#x2713;';
-      text.textContent = results.length + ' found';
       dot.style.display = 'inline-block';
       timer.style.display = 'none';
-
-      // Render fresh results
-      var html = '<div class="fresh-section fade-in">';
-      html += '<h3>&#x2728; Fresh Results &mdash; ' + dateStr + '</h3>';
-      results.forEach(function(r) {
-        html += '<div class="fresh-item">';
-        html += '<strong>' + (r.name || 'Untitled') + '</strong>';
-        if (r.institution) html += ' &mdash; ' + r.institution;
-        if (r.description) html += '<br>' + r.description;
-        html += '<div class="fresh-meta">';
-        if (r.deadline) html += '&#x1F4C5; ' + r.deadline + ' &nbsp; ';
-        if (r.stipend) html += '&#x1F4B0; ' + r.stipend + ' &nbsp; ';
-        if (r.category) html += '&#x1F3F7;&#xFE0F; ' + r.category;
-        html += '</div>';
-        if (r.url) html += '<a href="' + r.url + '" target="_blank" style="font-size:12px;color:var(--sky);">Visit program &rarr;</a>';
-        if (r.contact) html += '<span style="font-size:11px;color:var(--muted);margin-left:10px;">' + r.contact + '</span>';
-        html += '</div>';
-      });
-      html += '</div>';
-      freshDiv.innerHTML = html;
-      freshDiv.style.display = 'block';
+      text.textContent = added > 0 ? added + ' new added' : 'No new found';
+      freshDiv.style.display = 'none';
 
       // Save last refresh time
       localStorage.setItem('jp_last_refresh', new Date().toISOString());
     } else {
-      // Got response but no structured results — show raw text
+      // Got response but no structured results
       btn.className = 'btn-refresh success';
       icon.className = '';
       icon.innerHTML = '&#x2713;';
