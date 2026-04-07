@@ -1205,7 +1205,7 @@ function refreshOpps() {
   var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var dateStr = monthNames[today.getMonth()] + ' ' + today.getDate() + ', ' + today.getFullYear();
 
-  var sys = 'You are a research opportunity finder for JP, a second-year pre-med biology major at the University of Arizona. Today is ' + dateStr + '. Search for NEW and CURRENT research opportunities that JP could apply to. Focus on:\n\n1. University of Arizona undergraduate research positions and lab openings — be sure to check https://ur.arizona.edu/find/search-ua-researchers which is the UA Undergraduate Research search tool for finding faculty and open positions\n2. Summer 2026 or Fall 2026 REU programs at other universities with deadlines still open\n3. Clinical research volunteer and lab opportunities in Tucson AND the Phoenix metro area (Scottsdale, Tempe, Mesa, Chandler, Gilbert, Glendale) \u2014 including Mayo Clinic Scottsdale, Banner Phoenix, Barrow Neurological Institute, TGen, Phoenix Childrens Hospital, HonorHealth, Dignity Health, and ASU research labs\n4. Pre-med pipeline programs accepting applications\n\nIMPORTANT: Only include opportunities whose application deadline has NOT yet passed. Today is ' + dateStr + '. Do not include any opportunity with a deadline before today.\n\nFor each opportunity found, provide:\n- Program name\n- Institution\n- Brief description (1-2 sentences)\n- Application deadline\n- Stipend/compensation if mentioned\n- URL if available\n- Contact info if available\n\nRespond ONLY in this JSON format with no other text:\n[{"name":"...","institution":"...","description":"...","deadline":"...","stipend":"...","url":"...","contact":"...","category":"On-Campus Research|Lab Positions|Summer Research|Clinical"}]\n\nFind at least 5 opportunities. Only include real, currently active opportunities with verifiable details.';
+  var sys = 'You are a research opportunity finder for JP, a second-year pre-med biology major at the University of Arizona. Today is ' + dateStr + '. Search for NEW and CURRENT research opportunities that JP could apply to. Focus on:\n\n1. University of Arizona undergraduate research positions and lab openings — be sure to check https://ur.arizona.edu/find/search-ua-researchers which is the UA Undergraduate Research search tool for finding faculty and open positions\n2. Summer 2026 or Fall 2026 REU programs at other universities with deadlines still open\n3. Clinical research volunteer and lab opportunities in Tucson AND the Phoenix metro area (Scottsdale, Tempe, Mesa, Chandler, Gilbert, Glendale) \u2014 including Mayo Clinic Scottsdale, Banner Phoenix, Barrow Neurological Institute, TGen, Phoenix Childrens Hospital, HonorHealth, Dignity Health, and ASU research labs\n4. Pre-med pipeline programs accepting applications\n\nIMPORTANT: Only include opportunities whose application deadline has NOT yet passed. Today is ' + dateStr + '. Do not include any opportunity with a deadline before today.\n\nFor each opportunity found, provide:\n- Program name\n- Institution\n- Brief description (1-2 sentences)\n- Application deadline\n- Stipend/compensation if mentioned\n- URL if available\n- Contact info if available\n\nRespond ONLY in this JSON format with no other text:\n[{"name":"...","institution":"...","description":"...","deadline":"human readable e.g. May 1, 2026 or Rolling","deadlineDate":"YYYY-MM-DD or 2026-12-31 if rolling","stipend":"...","url":"...","contact":"...","category":"On-Campus Research|Lab Positions|Summer Research|Clinical"}]\n\nThe deadlineDate field MUST be in YYYY-MM-DD format and MUST be on or after ' + dateStr + '. For rolling/year-round opportunities, use 2026-12-31.\n\nFind at least 5 opportunities. Only include real, currently active opportunities with verifiable details.';
 
   fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -1248,6 +1248,16 @@ function refreshOpps() {
     }
 
     if (results.length > 0) {
+      // HARD FILTER: drop anything with a passed deadline
+      var todayD = new Date(); todayD.setHours(0,0,0,0);
+      var skipped = 0;
+      results = results.filter(function(r) {
+        var dd = r.deadlineDate || '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dd)) return false;
+        if (new Date(dd) < todayD) { skipped++; return false; }
+        return true;
+      });
+
       // Deduplicate and merge into main list
       var seen = {};
       allOpps.forEach(function(o) { seen[(o.name + '|' + o.institution).toLowerCase()] = true; });
@@ -1264,7 +1274,7 @@ function refreshOpps() {
             description: r.description || '',
             stipend: r.stipend || 'Check listing',
             deadline: r.deadline || 'Check website',
-            deadlineDate: '2026-12-31',
+            deadlineDate: r.deadlineDate,
             dates: 'Check program',
             url: r.url || '#',
             contact: r.contact || 'See website',
@@ -1289,7 +1299,9 @@ function refreshOpps() {
       icon.innerHTML = '&#x2713;';
       dot.style.display = 'inline-block';
       timer.style.display = 'none';
-      text.textContent = added > 0 ? added + ' new added' : 'No new found';
+      var msg = added > 0 ? added + ' new added' : 'No new found';
+      if (skipped > 0) msg += ' (' + skipped + ' expired skipped)';
+      text.textContent = msg;
       freshDiv.style.display = 'none';
 
       // Save last refresh time
